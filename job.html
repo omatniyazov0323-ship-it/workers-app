@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Поиск специалистов</title>
+
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#22c55e">
+
+<style>
+* { box-sizing: border-box; }
+
+:root {
+  --bg:#0f172a;
+  --card:#1e293b;
+  --text:#f1f5f9;
+  --input:#334155;
+  --accent:#22c55e;
+  --border:#475569;
+}
+
+.light {
+  --bg:#f8fafc;
+  --card:#ffffff;
+  --text:#0f172a;
+  --input:#e2e8f0;
+  --accent:#2563eb;
+  --border:#cbd5f5;
+}
+
+body {
+  margin:0;
+  font-family:Arial;
+  background:var(--bg);
+  color:var(--text);
+}
+
+.container {
+  max-width:900px;
+  margin:auto;
+  padding:20px;
+}
+
+.card {
+  background:var(--card);
+  padding:20px;
+  border-radius:12px;
+  margin-bottom:20px;
+  border:1px solid var(--border);
+}
+
+.home {
+  text-align:center;
+  margin-top:120px;
+}
+
+.btn {
+  width:260px;
+  margin:15px auto;
+  padding:15px;
+  border-radius:10px;
+  border:1px solid var(--border);
+  background:var(--card);
+  color:var(--text);
+  cursor:pointer;
+}
+
+input {
+  width:100%;
+  padding:12px;
+  margin:6px 0;
+  border-radius:8px;
+  border:1px solid var(--border);
+  background:var(--input);
+  color:var(--text);
+}
+
+button {
+  width:100%;
+  padding:12px;
+  margin-top:10px;
+  border-radius:8px;
+  border:none;
+  background:var(--accent);
+  color:white;
+}
+
+.worker {
+  padding:12px;
+  border:1px solid var(--border);
+  margin-bottom:10px;
+  border-radius:10px;
+}
+
+.category h2 {
+  border-bottom:2px solid var(--accent);
+  color:var(--accent);
+}
+
+img {
+  margin-top:10px;
+  max-width:100%;
+  border-radius:10px;
+}
+
+.file-label {
+  display:block;
+  padding:12px;
+  background:var(--input);
+  text-align:center;
+  cursor:pointer;
+  border:1px dashed var(--border);
+}
+
+.file-label input { display:none; }
+
+#themeToggle {
+  position:fixed;
+  top:15px;
+  right:15px;
+  width:45px;
+  height:45px;
+  border-radius:50%;
+}
+
+#installBtn {
+  position:fixed;
+  bottom:20px;
+  right:20px;
+  display:none;
+}
+
+.toast {
+  position:fixed;
+  bottom:20px;
+  left:50%;
+  transform:translateX(-50%);
+  background:var(--accent);
+  padding:10px 20px;
+  border-radius:8px;
+  display:none;
+}
+</style>
+</head>
+
+<body>
+
+<button id="themeToggle">🌙</button>
+<button id="installBtn">📲 Установить</button>
+<div id="toast" class="toast">Сохранено</div>
+
+<div id="home" class="home">
+<h1>Кто вы?</h1>
+<button class="btn" onclick="showPage('workerPage')">Специалист</button>
+<button class="btn" onclick="showPage('clientPage')">Клиент</button>
+</div>
+
+<div id="workerPage" class="container" style="display:none;">
+<button onclick="showPage('home')">Назад</button>
+
+<div class="card">
+<input id="name" placeholder="Имя">
+<input id="surname" placeholder="Фамилия">
+<input id="city" placeholder="Город">
+<input id="specialization" placeholder="Специальность">
+<input id="phone" placeholder="Телефон">
+
+<label class="file-label">
+📷 Выбрать фото
+<input type="file" id="photoFile">
+</label>
+
+<div id="fileName">Файл не выбран</div>
+
+<button onclick="addWorker()">Добавить</button>
+</div>
+</div>
+
+<div id="clientPage" class="container" style="display:none;">
+<button onclick="showPage('home')">Назад</button>
+
+<div class="card">
+<input id="search" placeholder="Поиск">
+</div>
+
+<div class="card">
+<div id="list"></div>
+</div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getFirestore, collection, addDoc, getDocs } 
+from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const firebaseConfig = {
+apiKey:"AIzaSyCgw9nS3VAtRLgsttoLhVk0rLgwbtRsqaY",
+authDomain:"workers-app-1d693.firebaseapp.com",
+projectId:"workers-app-1d693"
+};
+
+const app=initializeApp(firebaseConfig);
+const db=getFirestore(app);
+
+const list=document.getElementById("list");
+const search=document.getElementById("search");
+
+let workers=[];
+
+window.showPage=async(p)=>{
+home.style.display="none";
+workerPage.style.display="none";
+clientPage.style.display="none";
+document.getElementById(p).style.display="block";
+if(p==="clientPage") load();
+};
+
+function showToast(){
+toast.style.display="block";
+setTimeout(()=>toast.style.display="none",2000);
+}
+
+function getBase64(file){
+return new Promise(r=>{
+const reader=new FileReader();
+reader.readAsDataURL(file);
+reader.onload=()=>r(reader.result);
+});
+}
+
+window.addWorker=async()=>{
+const name=document.getElementById("name").value.trim();
+const spec=document.getElementById("specialization").value.trim().toLowerCase();
+
+if(!name||!spec){
+alert("Заполни поля");
+return;
+}
+
+let photo="";
+const file=document.getElementById("photoFile").files[0];
+if(file) photo=await getBase64(file);
+
+await addDoc(collection(db,"workers"),{
+name,
+surname:document.getElementById("surname").value,
+city:document.getElementById("city").value,
+specialization:spec,
+phone:document.getElementById("phone").value,
+photo
+});
+
+document.querySelectorAll("input").forEach(i=>i.value="");
+fileName.textContent="Файл не выбран";
+
+showToast();
+};
+
+async function load(){
+workers=[];
+const snap=await getDocs(collection(db,"workers"));
+snap.forEach(d=>workers.push(d.data()));
+render(workers);
+}
+
+function render(arr){
+list.innerHTML="";
+const groups={};
+
+arr.forEach(w=>{
+const key=(w.specialization||"другое");
+if(!groups[key]) groups[key]=[];
+groups[key].push(w);
+});
+
+for(let cat in groups){
+list.innerHTML+=`<h2>${cat}</h2>`;
+groups[cat].forEach(w=>{
+list.innerHTML+=`
+<div class="worker">
+<b>${w.name}</b><br>
+${w.city||""}<br>
+${w.phone||""}
+${w.photo?`<br><img src="${w.photo}">`:""}
+</div>`;
+});
+}
+}
+
+search.oninput=()=>{
+const v=search.value.toLowerCase();
+render(workers.filter(w=>w.specialization.includes(v)));
+};
+
+photoFile.onchange=()=>{
+fileName.textContent=photoFile.files[0]?.name||"Файл не выбран";
+};
+
+if(localStorage.theme==="light"){
+document.body.classList.add("light");
+}
+
+themeToggle.onclick=()=>{
+document.body.classList.toggle("light");
+localStorage.theme=document.body.classList.contains("light")?"light":"dark";
+};
+</script>
+
+<script>
+let deferredPrompt;
+
+window.addEventListener("beforeinstallprompt",(e)=>{
+e.preventDefault();
+deferredPrompt=e;
+installBtn.style.display="block";
+});
+
+installBtn.onclick=()=>{
+if(deferredPrompt){
+deferredPrompt.prompt();
+}
+};
+
+if("serviceWorker" in navigator){
+navigator.serviceWorker.register("service-worker.js");
+}
+</script>
+
+</body>
+</html>
